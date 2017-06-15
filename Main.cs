@@ -20,18 +20,14 @@ namespace USB_Term
         SerialPort port = new SerialPort(" ", 115200, Parity.None, 8, StopBits.One);
         bool zapisuj = false, pomiar=false;
 
-        [DllImport("kernel32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        static extern bool AllocConsole();
-
         delegate void SetTextCallback(string text);
         delegate void SetTextCallback2(string text);
 
+        string bufor = null;
 
         public Main()
         {
             InitializeComponent();
-            AllocConsole();
             String[] porty = SerialPort.GetPortNames();
             foreach (String x in porty)
             comboBox1.Items.Add(x);
@@ -42,36 +38,41 @@ namespace USB_Term
 
         private void DataReceivedHandler(object sender, SerialDataReceivedEventArgs e)
         {
+      
             string Temp="ERR";
             string Hum="ERR";
             SerialPort sp = (SerialPort)sender;
-            string indata = sp.ReadExisting();
-            if (pomiar)
+            int i = sp.ReadByte();
+            if (i != 13)
             {
-                if (indata.Length == 13)
+                bufor += (char)i;
+                Console.WriteLine("Bufor :" + bufor);
+            }
+            else //uzbierano całą linię
+            {
+                Console.WriteLine("Uzbierano całą linię");
+                Console.WriteLine(bufor);
+                if (pomiar)
                 {
-                    double T = double.Parse(indata.Substring(0, 3)) / 10;
-                    double H = double.Parse(indata.Substring(4, 3)) / 10;
-                    double suma = double.Parse(indata.Substring(8, 4)) / 10;
-                    Console.WriteLine(indata);
+                    double T = double.Parse(bufor.Split(':')[0]) / 10;
+                    double H = double.Parse(bufor.Split(':')[1]) / 10;
+                    double suma = double.Parse(bufor.Split(':')[2]) / 10;
+                    Console.WriteLine(bufor);
                     if (Math.Abs(T + H - suma) > 0.001)
                     {
                         Console.Clear();
                         Console.WriteLine("Temperatura: ERROR (" + T + ")");
                         Console.WriteLine("Wilgotność: ERROR (" + H + ")");
                         Console.WriteLine("Suma kontrolna: (" + suma + ")");
-                        Console.WriteLine(indata);
                     }
                     else
                     {
-                        Console.Clear();
                         Temp = String.Format("{0:0.0}", T);
                         Hum = String.Format("{0:0.0}", H);
                         //pomiary.Add(new Pomiar(DateTime.Now, T, H)); -- nie używane (przydatne przy masowym zapisywaniu wyników lub wyświetlaniu wykresu)
 
-                        Console.WriteLine("Temperatura: " + Temp + "*C");
-                        Console.WriteLine("Wilgotność: " + Hum + "%");
-                        //dodać zapis do pliku
+                        this.SetTempText("Temperatura: " + Temp + "*C");
+                        this.SetHumText("Wilgotność: " + Hum + "%");
                         if (zapisuj)
                         {
                             if (!File.Exists("dane.bmf"))
@@ -90,8 +91,10 @@ namespace USB_Term
                         }
                         pomiar = false;
                     }
-                }    
-            }
+                }
+                sp.ReadChar();
+                bufor = null;
+            }       
         }
 
         private void comboBox1_SelectedIndexChanged(object sender, EventArgs e)
@@ -107,20 +110,20 @@ namespace USB_Term
         private void checkBox1_CheckedChanged(object sender, EventArgs e)
         {
             zapisuj = checkBox1.Checked;
-            Console.WriteLine("Zapisuj = " + zapisuj);
+            //Console.WriteLine("Zapisuj = " + zapisuj);
         }
 
         private void trackBar1_ValueChanged(object sender, EventArgs e)
         {
-            label1.Text = "Odstęp między pomiarami: " + trackBar1.Value + "s";
+            //label1.Text = "Odstęp między pomiarami: " + trackBar1.Value + "s";
             timer1.Interval = trackBar1.Value * 1000;
-            Console.WriteLine("Timer interval = " + timer1.Interval);
+            //Console.WriteLine("Timer interval = " + timer1.Interval);
         }
 
         private void timer1_Tick(object sender, EventArgs e)
         {
             pomiar = true;
-            Console.WriteLine("Pomiar = " + pomiar);
+            //Console.WriteLine("Pomiar = " + pomiar);
         }
 
         private void comboBox1_MouseClick(object sender, MouseEventArgs e)
@@ -133,15 +136,29 @@ namespace USB_Term
 
         private void SetTempText(string text)
         {
-            if (this.textBox1.InvokeRequired)
+            if (this.label2.InvokeRequired)
             {
                 SetTextCallback d = new SetTextCallback(SetTempText);
                 this.Invoke(d, new object[] { text });
             }
             else
             {
-                this.textBox1.Text = text;
+                this.label2.Text = text;
             }
         }
+
+        private void SetHumText(string text)
+        {
+            if (this.label3.InvokeRequired)
+            {
+                SetTextCallback2 d = new SetTextCallback2(SetHumText);
+                this.Invoke(d, new object[] { text });
+            }
+            else
+            {
+                this.label3.Text = text;
+            }
+        }
+
     }
 }
