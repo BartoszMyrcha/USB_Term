@@ -23,7 +23,7 @@ namespace USB_Term
         delegate void SetTextCallback(string text);
         delegate void SetTextCallback2(string text);
 
-        string bufor = null;
+        public string bufor = null;
 
         public Main()
         {
@@ -31,9 +31,7 @@ namespace USB_Term
             String[] porty = SerialPort.GetPortNames();
             foreach (String x in porty)
             comboBox1.Items.Add(x);
-            port.DataReceived += new SerialDataReceivedEventHandler(DataReceivedHandler);
-            timer1.Start();
-           
+            port.DataReceived += new SerialDataReceivedEventHandler(DataReceivedHandler);  
         }
 
         private void DataReceivedHandler(object sender, SerialDataReceivedEventArgs e)
@@ -42,59 +40,45 @@ namespace USB_Term
             string Temp="ERR";
             string Hum="ERR";
             SerialPort sp = (SerialPort)sender;
-            int i = sp.ReadByte();
-            if (i != 13)
+            string i = sp.ReadTo("\r");
+            if (pomiar)
             {
-                bufor += (char)i;
-                Console.WriteLine("Bufor :" + bufor);
-            }
-            else //uzbierano całą linię
-            {
-                Console.WriteLine("Uzbierano całą linię");
-                Console.WriteLine(bufor);
-                if (pomiar)
+                double T = double.Parse(i.Split(':')[0]) / 10;
+                double H = double.Parse(i.Split(':')[1]) / 10;
+                double suma = double.Parse(i.Split(':')[2]) / 10;
+                if (Math.Abs(T + H - suma) > 0.001)
                 {
-                    double T = double.Parse(bufor.Split(':')[0]) / 10;
-                    double H = double.Parse(bufor.Split(':')[1]) / 10;
-                    double suma = double.Parse(bufor.Split(':')[2]) / 10;
-                    Console.WriteLine(bufor);
-                    if (Math.Abs(T + H - suma) > 0.001)
+                    Console.Clear();
+                    Console.WriteLine("Temperatura: ERROR (" + T + ")");
+                    Console.WriteLine("Wilgotność: ERROR (" + H + ")");
+                    Console.WriteLine("Suma kontrolna: (" + suma + ")");
+                }
+                else
+                {
+                   Temp = String.Format("{0:0.0}", T);
+                    Hum = String.Format("{0:0.0}", H);
+                    //pomiary.Add(new Pomiar(DateTime.Now, T, H)); -- nie używane (przydatne przy masowym zapisywaniu wyników lub wyświetlaniu wykresu)
+                    this.SetTempText("Temperatura: " + Temp + "*C");
+                    this.SetHumText("Wilgotność: " + Hum + "%");
+                    if (zapisuj)
                     {
-                        Console.Clear();
-                        Console.WriteLine("Temperatura: ERROR (" + T + ")");
-                        Console.WriteLine("Wilgotność: ERROR (" + H + ")");
-                        Console.WriteLine("Suma kontrolna: (" + suma + ")");
-                    }
-                    else
-                    {
-                        Temp = String.Format("{0:0.0}", T);
-                        Hum = String.Format("{0:0.0}", H);
-                        //pomiary.Add(new Pomiar(DateTime.Now, T, H)); -- nie używane (przydatne przy masowym zapisywaniu wyników lub wyświetlaniu wykresu)
-
-                        this.SetTempText("Temperatura: " + Temp + "*C");
-                        this.SetHumText("Wilgotność: " + Hum + "%");
-                        if (zapisuj)
+                        if (!File.Exists("dane.bmf"))
                         {
-                            if (!File.Exists("dane.bmf"))
+                            StreamWriter sw = File.CreateText("dane.bmf");
+                            sw.WriteLine("Data i czas\t\t|\tTemperatura\t|\tWilgotność");
+                            sw.WriteLine("----------------------------------------------------------------------");
+                            sw.Close();
+                        }
+                        else
+                            using (StreamWriter sw = new StreamWriter("dane.bmf", true))
                             {
-                                StreamWriter sw = File.CreateText("dane.bmf");
-                                sw.WriteLine("Data i czas\t\t|\tTemperatura\t|\tWilgotność");
-                                sw.WriteLine("----------------------------------------------------------------------");
+                                sw.WriteLine(DateTime.Now + "\t|\t" + Temp + "*C\t\t|\t" + Hum + "%");
                                 sw.Close();
                             }
-                            else
-                                using (StreamWriter sw = new StreamWriter("dane.bmf", true))
-                                {
-                                    sw.WriteLine(DateTime.Now + "\t|\t" + Temp + "*C\t\t|\t" + Hum + "%");
-                                    sw.Close();
-                                }
-                        }
-                        pomiar = false;
                     }
+                    pomiar = false;
                 }
-                sp.ReadChar();
-                bufor = null;
-            }       
+            }     
         }
 
         private void comboBox1_SelectedIndexChanged(object sender, EventArgs e)
@@ -104,6 +88,7 @@ namespace USB_Term
                 port.PortName = comboBox1.SelectedItem.ToString();
                 port.Open();
                 MessageBox.Show("Otwarto port: " + port.PortName);
+                timer1.Start();
             }
         }
 
