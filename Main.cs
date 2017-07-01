@@ -17,7 +17,7 @@ namespace USB_Term
     public partial class Main : Form
     {
         List<Pomiar> pomiary = new List<Pomiar>();
-        SerialPort port = new SerialPort(" ", 115200, Parity.None, 8, StopBits.One);
+        SerialPort port = new SerialPort(" ", 9600, Parity.None, 8, StopBits.One);
         bool zapisuj = false, pomiar=false;
 
         delegate void SetTextCallback(string text);
@@ -36,7 +36,6 @@ namespace USB_Term
 
         private void DataReceivedHandler(object sender, SerialDataReceivedEventArgs e)
         {
-      
             string Temp="ERR";
             string Hum="ERR";
             SerialPort sp = (SerialPort)sender;
@@ -45,39 +44,29 @@ namespace USB_Term
             {
                 double T = double.Parse(i.Split(':')[0]) / 10;
                 double H = double.Parse(i.Split(':')[1]) / 10;
-                double suma = double.Parse(i.Split(':')[2]) / 10;
-                if (Math.Abs(T + H - suma) > 0.001)
+                Temp = String.Format("{0:0.0}", T);
+                Hum = String.Format("{0:0.0}", H);
+                //pomiary.Add(new Pomiar(DateTime.Now, T, H)); -- nie używane (przydatne przy masowym zapisywaniu wyników lub wyświetlaniu wykresu)
+                this.SetTempText("Temperatura: " + Temp + "*C");
+                this.SetHumText("Wilgotność: " + Hum + "%");
+                notifyIcon1.Text = "Usb Term\n\tTemperatura: "+ Temp + "*C\n\tWilgotność: " + Hum + "%";
+                if (zapisuj)
                 {
-                    Console.Clear();
-                    Console.WriteLine("Temperatura: ERROR (" + T + ")");
-                    Console.WriteLine("Wilgotność: ERROR (" + H + ")");
-                    Console.WriteLine("Suma kontrolna: (" + suma + ")");
-                }
-                else
-                {
-                   Temp = String.Format("{0:0.0}", T);
-                    Hum = String.Format("{0:0.0}", H);
-                    //pomiary.Add(new Pomiar(DateTime.Now, T, H)); -- nie używane (przydatne przy masowym zapisywaniu wyników lub wyświetlaniu wykresu)
-                    this.SetTempText("Temperatura: " + Temp + "*C");
-                    this.SetHumText("Wilgotność: " + Hum + "%");
-                    if (zapisuj)
+                    if (!File.Exists("dane.bmf"))
                     {
-                        if (!File.Exists("dane.bmf"))
+                        StreamWriter sw = File.CreateText("dane.bmf");
+                        sw.WriteLine("Data i czas\t\t|\tTemperatura\t|\tWilgotność");
+                        sw.WriteLine("----------------------------------------------------------------------");
+                        sw.Close();
+                    }
+                    else
+                        using (StreamWriter sw = new StreamWriter("dane.bmf", true))
                         {
-                            StreamWriter sw = File.CreateText("dane.bmf");
-                            sw.WriteLine("Data i czas\t\t|\tTemperatura\t|\tWilgotność");
-                            sw.WriteLine("----------------------------------------------------------------------");
+                            sw.WriteLine(DateTime.Now + "\t|\t" + Temp + "*C\t\t|\t" + Hum + "%");
                             sw.Close();
                         }
-                        else
-                            using (StreamWriter sw = new StreamWriter("dane.bmf", true))
-                            {
-                                sw.WriteLine(DateTime.Now + "\t|\t" + Temp + "*C\t\t|\t" + Hum + "%");
-                                sw.Close();
-                            }
-                    }
-                    pomiar = false;
                 }
+                pomiar = false;
             }     
         }
 
@@ -143,6 +132,43 @@ namespace USB_Term
             {
                 this.label3.Text = text;
             }
+        }
+
+        private void zamknijToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            Application.Exit();
+        }
+
+        private void pokażProgramToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            this.ShowInTaskbar = true;
+            this.Visible = true;
+            notifyIcon1.Visible = false;
+        }
+
+        private void notifyIcon1_DoubleClick(object sender, EventArgs e)
+        {
+            this.ShowInTaskbar = true;
+            this.Visible = true;
+            this.Focus();
+            notifyIcon1.Visible = false;
+        }
+
+        private void Main_Resize(object sender, EventArgs e)
+        {
+            if(this.Width<437 && this.Height<194)
+            {
+                notifyIcon1.Visible = true;
+                //notifyIcon1.Text = "Usb Term";
+                notifyIcon1.Text = "Usb Term";
+
+                notifyIcon1.Icon = this.Icon;
+                notifyIcon1.ContextMenuStrip = contextMenuStrip1;
+                this.ShowInTaskbar = false;
+                this.Visible = false;
+                this.Width = 437;
+                this.Height = 194;
+            }           
         }
 
     }
